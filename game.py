@@ -23,6 +23,7 @@ class Enemy:
     def __init__(self, x, y):
         self.x = x
         self.y = y
+        self.hp = 3
 
 # --- Build a random map ---
 
@@ -137,7 +138,7 @@ def move_enemies(enemies, px, py, grid):
 # --- Draw everything to screen ---
 
 
-def draw(stdscr, grid, px, py, items, inventory, enemies):
+def draw(stdscr, grid, px, py, items, inventory, enemies, player_hp):
     max_y, max_x = stdscr.getmaxyx()
 
     for y in range(MAP_HEIGHT):
@@ -158,14 +159,16 @@ def draw(stdscr, grid, px, py, items, inventory, enemies):
                     pass
 
     try:
-        stdscr.addstr(MAP_HEIGHT + 1, 0, "Move: W A S D  |  Quit: Q")
+        stdscr.addstr(MAP_HEIGHT + 1, 0,
+                      "Move: W A S D | Quit: Q | Use Potion: P")
     except curses.error:
         pass
 
     try:
+        hp_bar = "HP: [" + "█" * player_hp + "░" * (10 - player_hp) + "]"
         inv_text = "Inventory: " + \
             (", ".join(i.name for i in inventory) if inventory else "Empty")
-        stdscr.addstr(MAP_HEIGHT + 2, 0, inv_text)
+        stdscr.addstr(MAP_HEIGHT + 2, 0, hp_bar + " | " + inv_text)
     except curses.error:
         pass
 
@@ -185,13 +188,34 @@ def main(stdscr):
     enemies = place_enemies(grid)
     inventory = []
     turn = 0
+    player_hp = 10
 
     while True:
-        draw(stdscr, grid, px, py, items, inventory, enemies)
+        if player_hp <= 0:
+            stdscr.clear()
+            try:
+                stdscr.addstr(MAP_HEIGHT // 2, MAP_WIDTH // 2 - 5, "GAME OVER")
+                stdscr.addstr(MAP_HEIGHT // 2 + 1, MAP_WIDTH //
+                              2 - 8, "Press any key to quit")
+            except curses.error:
+                pass
+            stdscr.refresh()
+            stdscr.getch()
+            break
+        draw(stdscr, grid, px, py, items, inventory, enemies, player_hp)
         key = stdscr.getch()
 
+        # Use Q key in order to quit the game
         if key in (ord('q'), ord('Q')):
             break
+
+        # Use Health Potions with P key
+        if key in (ord('p'), ord('P')):
+            for i, item in enumerate(inventory):
+                if item.name == "Health Potion":
+                    player_hp = min(10, player_hp + 3)
+                    inventory.pop(i)
+                    break
 
         nx, ny = px, py
         if key in (ord('w'), ord('W'), curses.KEY_UP):
@@ -204,13 +228,30 @@ def main(stdscr):
             nx += 1
 
         if 0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT:
-            if grid[ny][nx] == FLOOR:
+            # Check if an enemy is at the target tile
+            target_enemy = None
+            for e in enemies:
+                if e.x == nx and e.y == ny:
+                    target_enemy = e
+                    break
+
+            if target_enemy:
+                # Attack the enemy instead of moving
+                target_enemy.hp -= 1
+                if target_enemy.hp <= 0:
+                    enemies.remove(target_enemy)
+            elif grid[ny][nx] == FLOOR:
                 px, py = nx, ny
                 if (px, py) in items:
                     inventory.append(items.pop((px, py)))
+
         turn += 1
         if turn % 2 == 0:
             move_enemies(enemies, px, py, grid)
+            # Check if any enemy is standing on the player
+            for e in enemies:
+                if e.x == px and e.y == py:
+                    player_hp -= 1
 
 
 '''
