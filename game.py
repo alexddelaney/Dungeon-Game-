@@ -135,7 +135,38 @@ def move_enemies(enemies, px, py, grid):
                 enemy.y = ny
                 break
 
-# --- Draw everything to screen ---
+
+# --- Game over screen ---
+
+
+def show_game_over(stdscr, score):
+    stdscr.clear()
+    h, w = stdscr.getmaxyx()
+    lines = [
+        "  ____    _    __  __ _____    _____     _______ ____  ",
+        " / ___|  / \\  |  \\/  | ____|  / _ \\ \\   / / ____|  _ \\ ",
+        "| |  _  / _ \\ | |\\/| |  _|   | | | \\ \\ / /|  _| | |_) |",
+        "| |_| |/ ___ \\| |  | | |___  | |_| |\\ V / | |___|  _ < ",
+        " \\____/_/   \\_\\_|  |_|_____|  \\___/  \\_/  |_____|_| \\_\\",
+    ]
+    start_y = h // 2 - len(lines) // 2 - 2
+    for i, line in enumerate(lines):
+        try:
+            stdscr.addstr(start_y + i, max(0, w // 2 - len(line) // 2), line,
+                          curses.color_pair(1))
+        except curses.error:
+            pass
+    try:
+        score_text = f"Final Score: {score}"
+        stdscr.addstr(start_y + len(lines) + 2, w // 2 - len(score_text) // 2,
+                      score_text, curses.color_pair(2))
+        quit_text = "Press any key to quit..."
+        stdscr.addstr(start_y + len(lines) + 4, w // 2 - len(quit_text) // 2,
+                      quit_text, curses.color_pair(5))
+    except curses.error:
+        pass
+    stdscr.refresh()
+    stdscr.getch()
 
 
 def draw(stdscr, grid, px, py, items, inventory, enemies, player_hp, score):
@@ -210,21 +241,14 @@ def main(stdscr):
 
     while True:
         if player_hp <= 0:
-            stdscr.clear()
-            try:
-                stdscr.addstr(MAP_HEIGHT // 2, MAP_WIDTH // 2 - 5, "GAME OVER")
-                stdscr.addstr(MAP_HEIGHT // 2 + 1, MAP_WIDTH //
-                              2 - 8, "Press any key to quit")
-            except curses.error:
-                pass
-            stdscr.refresh()
-            stdscr.getch()
+            show_game_over(stdscr, score)
             break
         draw(stdscr, grid, px, py, items, inventory, enemies, player_hp, score)
         key = stdscr.getch()
 
         # Use Q key in order to quit the game
         if key in (ord('q'), ord('Q')):
+            show_game_over(stdscr, score)
             break
 
         # Use Health Potions with P key
