@@ -16,6 +16,14 @@ class Item:
         self.name = name
         self.symbol = symbol
 
+# --- Enemy class ---
+
+
+class Enemy:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
 # --- Build a random map ---
 
 
@@ -82,17 +90,64 @@ def place_items(grid):
 
     return items
 
+# --- Places enemies randomly on floor tiles ---
+
+
+def place_enemies(grid):
+    enemies = []
+    attempts = 0
+    placed = 0
+    while placed < 5 and attempts < 200:
+        x = random.randint(1, MAP_WIDTH - 2)
+        y = random.randint(1, MAP_HEIGHT - 2)
+        if grid[y][x] == FLOOR:
+            enemies.append(Enemy(x, y))
+            placed += 1
+        attempts += 1
+    return enemies
+
+# --- Move each enemy one step toward the player ---
+
+
+def move_enemies(enemies, px, py, grid):
+    for enemy in enemies:
+        dx = px - enemy.x
+        dy = py - enemy.y
+
+        # Try to close the larger gap first
+        moves = []
+        if abs(dx) >= abs(dy):
+            moves = [(dx, 0), (0, dy)]
+        else:
+            moves = [(0, dy), (dx, 0)]
+
+        for mx, my in moves:
+            if mx == 0 and my == 0:
+                continue
+            # Normalize to one step
+            step_x = (1 if mx > 0 else -1) if mx != 0 else 0
+            step_y = (1 if my > 0 else -1) if my != 0 else 0
+            nx = enemy.x + step_x
+            ny = enemy.y + step_y
+            if grid[ny][nx] == FLOOR:
+                enemy.x = nx
+                enemy.y = ny
+                break
+
 # --- Draw everything to screen ---
 
 
-def draw(stdscr, grid, px, py, items, inventory):
+def draw(stdscr, grid, px, py, items, inventory, enemies):
     max_y, max_x = stdscr.getmaxyx()
 
     for y in range(MAP_HEIGHT):
         for x in range(MAP_WIDTH):
             if y < max_y and x < max_x:
+                enemy_positions = {(e.x, e.y) for e in enemies}
                 if x == px and y == py:
                     ch = PLAYER
+                elif (x, y) in enemy_positions:
+                    ch = 'E'
                 elif (x, y) in items:
                     ch = items[(x, y)].symbol
                 else:
@@ -127,10 +182,12 @@ def main(stdscr):
     grid = generate_map()
     px, py = find_start(grid)
     items = place_items(grid)
+    enemies = place_enemies(grid)
     inventory = []
+    turn = 0
 
     while True:
-        draw(stdscr, grid, px, py, items, inventory)
+        draw(stdscr, grid, px, py, items, inventory, enemies)
         key = stdscr.getch()
 
         if key in (ord('q'), ord('Q')):
@@ -151,6 +208,9 @@ def main(stdscr):
                 px, py = nx, ny
                 if (px, py) in items:
                     inventory.append(items.pop((px, py)))
+        turn += 1
+        if turn % 2 == 0:
+            move_enemies(enemies, px, py, grid)
 
 
 '''
