@@ -138,23 +138,28 @@ def move_enemies(enemies, px, py, grid):
 # --- Draw everything to screen ---
 
 
-def draw(stdscr, grid, px, py, items, inventory, enemies, player_hp):
+def draw(stdscr, grid, px, py, items, inventory, enemies, player_hp, score):
     max_y, max_x = stdscr.getmaxyx()
 
+    enemy_positions = {(e.x, e.y) for e in enemies}
     for y in range(MAP_HEIGHT):
         for x in range(MAP_WIDTH):
             if y < max_y and x < max_x:
-                enemy_positions = {(e.x, e.y) for e in enemies}
                 if x == px and y == py:
                     ch = PLAYER
+                    color = curses.color_pair(4)
                 elif (x, y) in enemy_positions:
                     ch = 'E'
+                    color = curses.color_pair(1)
                 elif (x, y) in items:
                     ch = items[(x, y)].symbol
+                    color = curses.color_pair(
+                        2) if ch == '$' else curses.color_pair(3)
                 else:
                     ch = grid[y][x]
+                    color = curses.color_pair(5)
                 try:
-                    stdscr.addch(y, x, ch)
+                    stdscr.addch(y, x, ch, color)
                 except curses.error:
                     pass
 
@@ -165,10 +170,15 @@ def draw(stdscr, grid, px, py, items, inventory, enemies, player_hp):
         pass
 
     try:
-        hp_bar = "HP: [" + "█" * player_hp + "░" * (10 - player_hp) + "]"
+        hp_bar = "HP: [" + "#" * player_hp + "." * (10 - player_hp) + "]"
+        stdscr.addstr(MAP_HEIGHT + 2, 0, hp_bar + " | Score: " + str(score))
+    except curses.error:
+        pass
+
+    try:
         inv_text = "Inventory: " + \
             (", ".join(i.name for i in inventory) if inventory else "Empty")
-        stdscr.addstr(MAP_HEIGHT + 2, 0, hp_bar + " | " + inv_text)
+        stdscr.addstr(MAP_HEIGHT + 3, 0, inv_text)
     except curses.error:
         pass
 
@@ -181,6 +191,13 @@ def main(stdscr):
     curses.curs_set(0)
     stdscr.nodelay(False)
     stdscr.keypad(True)
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    curses.init_pair(6, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
 
     grid = generate_map()
     px, py = find_start(grid)
@@ -189,6 +206,7 @@ def main(stdscr):
     inventory = []
     turn = 0
     player_hp = 10
+    score = 0
 
     while True:
         if player_hp <= 0:
@@ -202,7 +220,7 @@ def main(stdscr):
             stdscr.refresh()
             stdscr.getch()
             break
-        draw(stdscr, grid, px, py, items, inventory, enemies, player_hp)
+        draw(stdscr, grid, px, py, items, inventory, enemies, player_hp, score)
         key = stdscr.getch()
 
         # Use Q key in order to quit the game
@@ -240,10 +258,14 @@ def main(stdscr):
                 target_enemy.hp -= 1
                 if target_enemy.hp <= 0:
                     enemies.remove(target_enemy)
+                    score += 10
             elif grid[ny][nx] == FLOOR:
                 px, py = nx, ny
                 if (px, py) in items:
-                    inventory.append(items.pop((px, py)))
+                    picked = items.pop((px, py))
+                    inventory.append(picked)
+                    if picked.name == "Gold Coin":
+                        score += 5
 
         turn += 1
         if turn % 2 == 0:
