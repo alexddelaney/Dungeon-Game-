@@ -2,8 +2,8 @@ import curses
 import random
 
 # --- Constants ---
-MAP_WIDTH = 40
-MAP_HEIGHT = 20
+MAP_WIDTH = 60
+MAP_HEIGHT = 30
 WALL = '#'
 FLOOR = '.'
 PLAYER = '@'
@@ -33,9 +33,9 @@ def generate_map():
 
     rooms = []
 
-    for _ in range(8):
-        room_w = random.randint(4, 10)
-        room_h = random.randint(3, 6)
+    for _ in range(30):
+        room_w = random.randint(3, 7)
+        room_h = random.randint(3, 5)
         start_x = random.randint(1, MAP_WIDTH - room_w - 1)
         start_y = random.randint(1, MAP_HEIGHT - room_h - 1)
 
@@ -88,6 +88,13 @@ def place_items(grid):
             items[(x, y)] = Item(template.name, template.symbol)
             placed += 1
         attempts += 1
+
+    for _ in range(200):
+        x = random.randint(1, MAP_WIDTH - 2)
+        y = random.randint(1, MAP_HEIGHT - 2)
+        if grid[y][x] == FLOOR and (x, y) not in items:
+            items[(x, y)] = Item("Stairs", ">")
+            break
 
     return items
 
@@ -168,6 +175,39 @@ def show_game_over(stdscr, score):
     stdscr.refresh()
     stdscr.getch()
 
+# --- You win screen ---
+
+
+def show_you_win(stdscr, score):
+    stdscr.clear()
+    h, w = stdscr.getmaxyx()
+    lines = [
+        " __     __          __          ___       _ ",
+        " \\ \\   / /          \\ \\        / (_)     | |",
+        "  \\ \\_/ /__  _   _   \\ \\  /\\  / / _ _ __ | |",
+        "   \\   / _ \\| | | |   \\ \\/  \\/ / | | '_ \\| |",
+        "    | | (_) | |_| |    \\  /\\  /  | | | | |_|",
+        "    |_|\\___/ \\__,_|     \\/  \\/   |_|_| |_(_)",
+    ]
+    start_y = h // 2 - len(lines) // 2 - 2
+    for i, line in enumerate(lines):
+        try:
+            stdscr.addstr(start_y + i, max(0, w // 2 - len(line) // 2), line,
+                          curses.color_pair(3))
+        except curses.error:
+            pass
+    try:
+        score_text = f"Final Score: {score}"
+        stdscr.addstr(start_y + len(lines) + 2, w // 2 - len(score_text) // 2,
+                      score_text, curses.color_pair(2))
+        quit_text = "Press any key to quit..."
+        stdscr.addstr(start_y + len(lines) + 4, w // 2 - len(quit_text) // 2,
+                      quit_text, curses.color_pair(5))
+    except curses.error:
+        pass
+    stdscr.refresh()
+    stdscr.getch()
+
 
 def draw(stdscr, grid, px, py, items, inventory, enemies, player_hp, score):
     max_y, max_x = stdscr.getmaxyx()
@@ -184,8 +224,12 @@ def draw(stdscr, grid, px, py, items, inventory, enemies, player_hp, score):
                     color = curses.color_pair(1)
                 elif (x, y) in items:
                     ch = items[(x, y)].symbol
-                    color = curses.color_pair(
-                        2) if ch == '$' else curses.color_pair(3)
+                    if ch == '$':
+                        color = curses.color_pair(2)
+                    elif ch == '>':
+                        color = curses.color_pair(6)
+                    else:
+                        color = curses.color_pair(3)
                 else:
                     ch = grid[y][x]
                     color = curses.color_pair(5)
@@ -287,6 +331,9 @@ def main(stdscr):
                 px, py = nx, ny
                 if (px, py) in items:
                     picked = items.pop((px, py))
+                    if picked.name == "Stairs":
+                        show_you_win(stdscr, score)
+                        return
                     inventory.append(picked)
                     if picked.name == "Gold Coin":
                         score += 5
