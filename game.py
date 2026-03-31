@@ -1,0 +1,163 @@
+import curses
+import random
+
+# --- Constants ---
+MAP_WIDTH = 40
+MAP_HEIGHT = 20
+WALL = '#'
+FLOOR = '.'
+PLAYER = '@'
+
+# --- Item class ---
+
+
+class Item:
+    def __init__(self, name, symbol):
+        self.name = name
+        self.symbol = symbol
+
+# --- Build a random map ---
+
+
+def generate_map():
+    grid = [[WALL for _ in range(MAP_WIDTH)] for _ in range(MAP_HEIGHT)]
+
+    rooms = []
+
+    for _ in range(8):
+        room_w = random.randint(4, 10)
+        room_h = random.randint(3, 6)
+        start_x = random.randint(1, MAP_WIDTH - room_w - 1)
+        start_y = random.randint(1, MAP_HEIGHT - room_h - 1)
+
+        for y in range(start_y, start_y + room_h):
+            for x in range(start_x, start_x + room_w):
+                grid[y][x] = FLOOR
+
+        center_x = start_x + room_w // 2
+        center_y = start_y + room_h // 2
+        rooms.append((center_x, center_y))
+
+    for i in range(len(rooms) - 1):
+        x1, y1 = rooms[i]
+        x2, y2 = rooms[i + 1]
+
+        for x in range(min(x1, x2), max(x1, x2) + 1):
+            grid[y1][x] = FLOOR
+        for y in range(min(y1, y2), max(y1, y2) + 1):
+            grid[y][x2] = FLOOR
+
+    return grid
+
+# --- Find a valid starting spot for the player ---
+
+
+def find_start(grid):
+    for y in range(MAP_HEIGHT):
+        for x in range(MAP_WIDTH):
+            if grid[y][x] == FLOOR:
+                return x, y
+
+# --- Place items randomly on floor tiles ---
+
+
+def place_items(grid):
+    items = {}
+
+    item_types = [
+        Item("Gold Coin", "$"),
+        Item("Health Potion", "!"),
+    ]
+
+    attempts = 0
+    placed = 0
+    while placed < 10 and attempts < 200:
+        x = random.randint(1, MAP_WIDTH - 2)
+        y = random.randint(1, MAP_HEIGHT - 2)
+        if grid[y][x] == FLOOR and (x, y) not in items:
+            template = random.choice(item_types)
+            items[(x, y)] = Item(template.name, template.symbol)
+            placed += 1
+        attempts += 1
+
+    return items
+
+# --- Draw everything to screen ---
+
+
+def draw(stdscr, grid, px, py, items, inventory):
+    max_y, max_x = stdscr.getmaxyx()
+
+    for y in range(MAP_HEIGHT):
+        for x in range(MAP_WIDTH):
+            if y < max_y and x < max_x:
+                if x == px and y == py:
+                    ch = PLAYER
+                elif (x, y) in items:
+                    ch = items[(x, y)].symbol
+                else:
+                    ch = grid[y][x]
+                try:
+                    stdscr.addch(y, x, ch)
+                except curses.error:
+                    pass
+
+    try:
+        stdscr.addstr(MAP_HEIGHT + 1, 0, "Move: W A S D  |  Quit: Q")
+    except curses.error:
+        pass
+
+    try:
+        inv_text = "Inventory: " + \
+            (", ".join(i.name for i in inventory) if inventory else "Empty")
+        stdscr.addstr(MAP_HEIGHT + 2, 0, inv_text)
+    except curses.error:
+        pass
+
+    stdscr.refresh()
+
+# --- Main game loop ---
+
+
+def main(stdscr):
+    curses.curs_set(0)
+    stdscr.nodelay(False)
+    stdscr.keypad(True)
+
+    grid = generate_map()
+    px, py = find_start(grid)
+    items = place_items(grid)
+    inventory = []
+
+    while True:
+        draw(stdscr, grid, px, py, items, inventory)
+        key = stdscr.getch()
+
+        if key in (ord('q'), ord('Q')):
+            break
+
+        nx, ny = px, py
+        if key in (ord('w'), ord('W'), curses.KEY_UP):
+            ny -= 1
+        elif key in (ord('s'), ord('S'), curses.KEY_DOWN):
+            ny += 1
+        elif key in (ord('a'), ord('A'), curses.KEY_LEFT):
+            nx -= 1
+        elif key in (ord('d'), ord('D'), curses.KEY_RIGHT):
+            nx += 1
+
+        if 0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT:
+            if grid[ny][nx] == FLOOR:
+                px, py = nx, ny
+                if (px, py) in items:
+                    inventory.append(items.pop((px, py)))
+
+
+'''
+items.pop takes object from the map puts it in inentory and removes it from 
+the map.
+'''
+
+
+# --- Entry point ---
+curses.wrapper(main)
